@@ -9,6 +9,7 @@ use std::io::{BufReader, Read};
 use std::process::exit;
 
 fn main() {
+    env_logger::init();
     info!("Starting");
     if let Err(error) = do_it() {
         eprintln!("{}", error);
