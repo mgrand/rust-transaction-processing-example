@@ -3,10 +3,20 @@ extern crate log;
 
 use anyhow::{bail, Context, Result};
 use log::{error, info};
+use serde::Deserialize;
 use std::env;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::process::exit;
+use rust_decimal::Decimal;
+
+#[derive(Debug, Deserialize)]
+struct InputTransaction {
+    typ: String,
+    client: String,
+    tx: String,
+    amount: Decimal
+}
 
 fn main() {
     env_logger::init();
@@ -20,8 +30,29 @@ fn main() {
 }
 
 fn run() -> Result<()> {
-    let _reader = process_command_line(env::args().collect())?;
+    let reader = process_command_line(env::args().collect())?;
+    let mut csv_reader = csv::Reader::from_reader(reader);
+    let mut transaction_count = 0;
+    let mut err_count = 0;
+    for record_result in csv_reader.deserialize() {
+        transaction_count += 1;
+        match record_result {
+            Ok(record) => {
+                let tx: InputTransaction = record;
+                process_input_transaction(&tx);
+            }
+            Err(error) => {
+                error!("Error reading transaction: {}", error);
+                err_count += 1;
+            }
+        }
+    }
+    info!("Processed {} transactions; {} had errors", transaction_count, err_count);
     Ok(())
+}
+
+fn process_input_transaction(tx: &InputTransaction) {
+
 }
 
 // Return a reader for the input.
