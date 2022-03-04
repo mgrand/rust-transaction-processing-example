@@ -12,10 +12,11 @@ use std::process::exit;
 
 #[derive(Debug, Deserialize)]
 struct InputTransaction {
+    #[serde(alias="type")]
     typ: String,
     client: String,
     tx: String,
-    amount: Decimal,
+    amount: String,
 }
 
 fn main() {
@@ -98,7 +99,7 @@ mod tests {
         }
         if let Ok(_) = process_command_line(vec![
             "exe".to_string(),
-            "asdf".to_string(),
+            "apple".to_string(),
             "extra".to_string(),
         ]) {
             panic!("No error for two args")
@@ -112,7 +113,7 @@ mod tests {
         }
     }
 
-    const TRANSACTION_FILE_CONTENT: &str = r##"type, client, tx, amount
+    const TRANSACTION_FILE_CONTENT: &str = r##"type,client,tx,amount
 deposit, 1, 1, 1.0
 deposit, 2, 2, 2.0
 deposit, 1, 3, 2.0
@@ -154,7 +155,7 @@ withdrawal, 2, 5, 3.0"##;
             Ok(())
         }
         with_test_file("test_file_run", do_it)?;
-        let expected_transaction_count = TRANSACTION_FILE_CONTENT.lines().count();
+        let expected_transaction_count = TRANSACTION_FILE_CONTENT.lines().count() - 1;
         unsafe {
             assert_eq!(expected_transaction_count, TRANSACTION_COUNT);
         }
