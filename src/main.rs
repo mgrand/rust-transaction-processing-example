@@ -21,7 +21,7 @@ struct InputTransaction {
 fn main() {
     env_logger::init();
     info!("Starting");
-    if let Err(error) = run() {
+    if let Err(error) = run(process_input_transaction) {
         eprintln!("{}", error);
         error!("Exiting due to error: {}", error);
         exit(1);
@@ -29,7 +29,7 @@ fn main() {
     info!("normal completion");
 }
 
-fn run() -> Result<()> {
+fn run(process: fn (&InputTransaction)-> ()) -> Result<()> {
     let reader = process_command_line(env::args().collect())?;
     let mut csv_reader = csv::Reader::from_reader(reader);
     let mut transaction_count = 0;
@@ -104,13 +104,25 @@ withdrawal, 2, 5, 3.0"##;
 
     #[test]
     fn process_command_line_good_file() -> Result<()> {
-        let file_name = "cli_test_file";
+        fn do_it(file_name: &str) -> Result<()> {
+            let _ = process_command_line(vec!["exe".to_string(), file_name.to_string()])?;
+            Ok(())
+        }
+        with_test_file("test_file_cli", do_it)
+    }
+
+    fn with_test_file(file_name: &str, do_it: fn (file_name: &str)->Result<()>) -> Result<()>{
         {
             let mut file = File::create(file_name)?;
             file.write_all(TRANSACTION_FILE_CONTENT.as_bytes())?;
         }
-        let _file = process_command_line(vec!["exe".to_string(), file_name.to_string()])?;
-        remove_file(file_name)?;
-        Ok(())
+        let result = do_it(file_name);
+        let _ = remove_file(file_name);
+        result
+    }
+
+    #[test]
+    fn run_test() {
+
     }
 }
