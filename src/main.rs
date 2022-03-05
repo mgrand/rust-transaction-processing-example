@@ -174,10 +174,7 @@ fn find_transaction(customer: &Customer, tx_id: u32) -> Option<&InputTransaction
         .iter()
         .find(|tx| match u32::from_str(tx.tx.trim()) {
             Ok(this_id) => this_id == tx_id,
-            Err(_) => {
-                invalid_transaction_id(tx);
-                false
-            }
+            Err(_) => false
         })
 }
 
@@ -455,6 +452,33 @@ badrecord, "##;
             },
             &mut customers,
         )?;
+        add_customer_transaction(
+            InputTransaction {
+                typ: "deposit".to_string(),
+                client: "3".to_string(),
+                tx: "5".to_string(),
+                amount: "7".to_string(),
+            },
+            &mut customers,
+        )?;
+        add_customer_transaction(
+            InputTransaction {
+                typ: "deposit".to_string(),
+                client: "3".to_string(),
+                tx: "6".to_string(),
+                amount: "1".to_string(),
+            },
+            &mut customers,
+        )?;
+        add_customer_transaction(
+            InputTransaction {
+                typ: "dispute".to_string(),
+                client: "3".to_string(),
+                tx: "5".to_string(),
+                amount: "".to_string(),
+            },
+            &mut customers,
+        )?;
         compute_customer_state_from_transactions(&mut customers);
         let c1 = customers
             .get(&1)
@@ -467,8 +491,14 @@ badrecord, "##;
         let c2 = customers.get(&2).expect("Expect to have a record for customer 2");
         assert_eq!(Decimal::from_str("1.6784").unwrap(), c2.total, "expected total to be 1.6784. Record is {:?}", c2);
         assert_eq!(Decimal::from_str("1.6784").unwrap(), c2.available, "expected available to be 1.6784. Record is {:?}", c2);
-        assert_eq!(Decimal::zero(), c1.held);
-        assert!(!c1.locked);
+        assert_eq!(Decimal::zero(), c2.held);
+        assert!(!c2.locked);
+
+        let c3 = customers.get(&3).expect("Expect to have a record for customer 3");
+        assert_eq!(Decimal::from_str("8").unwrap(), c3.total, "expected total to be 8. Record is {:?}", c3);
+        assert_eq!(Decimal::from_str("1").unwrap(), c3.available, "expected available to be 1. Record is {:?}", c3);
+        assert_eq!(Decimal::from_str("7").unwrap(), c3.held, "expected held to be 7. Record is {:?}", c3);
+        assert!(!c3.locked);
 
         Ok(())
     }
