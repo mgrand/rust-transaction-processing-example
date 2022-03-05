@@ -7,7 +7,7 @@ use rust_decimal::prelude::Zero;
 use rust_decimal::Decimal;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
-use std::env;
+use std::{env, io};
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::process::exit;
@@ -238,7 +238,12 @@ fn chargeback_transaction(customer: &mut Customer, tx: InputTransaction) {
 }
 
 fn write_customer_output(customers: &CustomerMap) -> Result<()> {
-    todo!()
+    let mut wtr = csv::Writer::from_writer(io::stdout());
+    for customer in customers.values() {
+        wtr.serialize(customer)?;
+    }
+    wtr.flush();
+    Ok(())
 }
 
 fn organize_transactions_by_customer(
