@@ -4,12 +4,14 @@ extern crate log;
 use anyhow::{bail, Context, Result};
 use log::{debug, error, info};
 use rust_decimal::Decimal;
+use rust_decimal::prelude::Zero;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::{BufReader, Read};
 use std::process::exit;
+use std::str::FromStr;
 
 #[derive(Debug, Deserialize)]
 struct InputTransaction {
@@ -30,7 +32,13 @@ struct Customer {
     transactions: Vec<InputTransaction>,
 }
 
-type CUSTOMER_MAP = HashMap<u32, Customer>;
+impl Customer {
+    fn new() -> Self {
+        Customer { available: Decimal::zero(), held: Decimal::zero(), total: Decimal::zero(), locked: false, transactions: vec![]}
+    }
+}
+
+type CustomerMap = HashMap<u32, Customer>;
 
 fn main() {
     env_logger::init();
@@ -45,13 +53,24 @@ fn main() {
 
 fn run() -> Result<()> {
     let reader = process_command_line(env::args().collect())?;
-    let mut customers = CUSTOMER_MAP::new();
-    organize_transactions_by_customer(&mut customers, add_customer_transaction, reader)
+    let mut customers = CustomerMap::new();
+    organize_transactions_by_customer(&mut customers, add_customer_transaction, reader);
+    compute_customer_state_from_transactions(&mut customers);
+    write_customer_output(&customers)?;
+    Ok(())
+}
+
+fn compute_customer_state_from_transactions(customers: &mut CustomerMap) {
+    todo!()
+}
+
+fn write_customer_output(customers: &CustomerMap) -> Result<()> {
+    todo!()
 }
 
 fn organize_transactions_by_customer(
-    customers: &CUSTOMER_MAP,
-    process: fn(&InputTransaction, &CUSTOMER_MAP) -> Result<()>,
+    customers: &mut CustomerMap,
+    process: fn(InputTransaction, &mut CustomerMap) -> Result<()>,
     reader: Box<dyn Read>,
 ) -> Result<()> {
     let mut csv_reader = csv::Reader::from_reader(reader);
@@ -62,7 +81,7 @@ fn organize_transactions_by_customer(
         match record_result {
             Ok(tx) => {
                 debug!("Processing transaction {:?}", tx);
-                process(&tx, customers)?;
+                process(tx, customers)?;
             }
             Err(error) => {
                 error!("Error reading transaction: {}", error);
@@ -77,7 +96,16 @@ fn organize_transactions_by_customer(
     Ok(())
 }
 
-fn add_customer_transaction(tx: &InputTransaction, customers: &CUSTOMER_MAP) -> Result<()> {
+fn add_customer_transaction(tx: InputTransaction, customers: &mut CustomerMap) -> Result<()> {
+    let client_id= u32::from_str(tx.client.trim()).context("Client ID is not a valid integer")?;
+    let customer = match customers.get_mut(&client_id) {
+        Some(cust) => cust,
+        None => {
+            customers.insert(client_id, Customer::new());
+            customers.get_mut(&client_id).unwrap()
+        }
+    };
+    customer.transactions.push(tx);
     Ok(())
 }
 
@@ -136,7 +164,8 @@ deposit, 1, 1, 1.0
 deposit, 2, 2, 2.0
 deposit, 1, 3, 2.0
 withdrawal, 1, 4, 1.5
-withdrawal, 2, 5, 3.0"##;
+withdrawal, 2, 5, 3.0
+badrecord, "##;
 
     #[test]
     fn process_command_line_good_file() -> Result<()> {
@@ -161,23 +190,53 @@ withdrawal, 2, 5, 3.0"##;
 
     #[test]
     fn run_test() -> Result<()> {
-        fn increment_transaction_count(_: &InputTransaction, _: &CUSTOMER_MAP) -> Result<()> {
+        fn increment_transaction_count(_: InputTransaction, _: &mut CustomerMap) -> Result<()> {
             unsafe {
                 TRANSACTION_COUNT += 1;
             }
             Ok(())
         }
         fn do_it(file_name: &str) -> Result<()> {
-            let mut customers = CUSTOMER_MAP::new();
+            let mut customers = CustomerMap::new();
             let reader = open_file_buffered(file_name)?;
-            organize_transactions_by_customer(&customers, increment_transaction_count, reader)?;
+            organize_transactions_by_customer(&mut customers, increment_transaction_count, reader)?;
             Ok(())
         }
         with_test_file("test_file_run", do_it)?;
-        let expected_transaction_count = TRANSACTION_FILE_CONTENT.lines().count() - 1;
+        let expected_transaction_count = TRANSACTION_FILE_CONTENT.lines().count() - 2; // 2 = 1 header record + 1 error record
         unsafe {
             assert_eq!(expected_transaction_count, TRANSACTION_COUNT);
         }
+        Ok(())
+    }
+    
+    #[test]
+    fn add_customer_transaction_test() -> Result<()> {
+        let tx1 = InputTransaction {
+            typ: "deposit".to_string(),
+            client: "1".to_string(),
+            tx: "1".to_string(),
+            amount: "1".to_string()
+        };
+        let tx2 = InputTransaction {
+            typ: "deposit".to_string(),
+            client: "2".to_string(),
+            tx: "2".to_string(),
+            amount: "1".to_string()
+        };
+        let tx3 = InputTransaction {
+            typ: "deposit".to_string(),
+            client: "1".to_string(),
+            tx: "3".to_string(),
+            amount: "1".to_string()
+        };
+        let mut customers = CustomerMap::new();
+        add_customer_transaction(tx1, &mut customers)?;
+        add_customer_transaction(tx2, &mut customers)?;
+        add_customer_transaction(tx3, &mut customers)?;
+        assert_eq!(2, customers.len());
+        assert_eq!(2, customers.get(&1).unwrap().transactions.len());
+        assert_eq!(1, customers.get(&2).unwrap().transactions.len());
         Ok(())
     }
 }
