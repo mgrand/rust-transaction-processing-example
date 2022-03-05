@@ -4,7 +4,8 @@ extern crate log;
 use anyhow::{bail, Context, Result};
 use log::{debug, error, info};
 use rust_decimal::Decimal;
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::env;
 use std::fs::File;
 use std::io::{BufReader, Read};
@@ -12,12 +13,24 @@ use std::process::exit;
 
 #[derive(Debug, Deserialize)]
 struct InputTransaction {
-    #[serde(alias="type")]
+    #[serde(alias = "type")]
     typ: String,
     client: String,
     tx: String,
     amount: String,
 }
+
+#[derive(Debug, Serialize)]
+struct Customer {
+    available: Decimal,
+    held: Decimal,
+    total: Decimal,
+    locked: bool,
+    #[serde(skip)]
+    transactions: Vec<InputTransaction>,
+}
+
+type CUSTOMER_MAP = HashMap<u32, Customer>;
 
 fn main() {
     env_logger::init();
@@ -32,10 +45,15 @@ fn main() {
 
 fn run() -> Result<()> {
     let reader = process_command_line(env::args().collect())?;
-    process_transactions(process_input_transaction, reader)
+    let mut customers = CUSTOMER_MAP::new();
+    organize_transactions_by_customer(&mut customers, add_customer_transaction, reader)
 }
 
-fn process_transactions(process: fn(&InputTransaction) -> Result<()>, reader: Box<dyn Read>) -> Result<()> {
+fn organize_transactions_by_customer(
+    customers: &CUSTOMER_MAP,
+    process: fn(&InputTransaction, &CUSTOMER_MAP) -> Result<()>,
+    reader: Box<dyn Read>,
+) -> Result<()> {
     let mut csv_reader = csv::Reader::from_reader(reader);
     let mut transaction_count = 0;
     let mut err_count = 0;
@@ -59,7 +77,7 @@ fn process_transactions(process: fn(&InputTransaction) -> Result<()>, reader: Bo
     Ok(())
 }
 
-fn process_input_transaction(tx: &InputTransaction) -> Result<()> {
+fn add_customer_transaction(tx: &InputTransaction, customers: &CUSTOMER_MAP) -> Result<()> {
     Ok(())
 }
 
@@ -143,15 +161,16 @@ withdrawal, 2, 5, 3.0"##;
 
     #[test]
     fn run_test() -> Result<()> {
-        fn increment_transaction_count(_: &InputTransaction) -> Result<()> {
+        fn increment_transaction_count(_: &InputTransaction, _: &CUSTOMER_MAP) -> Result<()> {
             unsafe {
                 TRANSACTION_COUNT += 1;
             }
             Ok(())
         }
         fn do_it(file_name: &str) -> Result<()> {
+            let mut customers = CUSTOMER_MAP::new();
             let reader = open_file_buffered(file_name)?;
-            process_transactions(increment_transaction_count, reader)?;
+            organize_transactions_by_customer(&customers, increment_transaction_count, reader)?;
             Ok(())
         }
         with_test_file("test_file_run", do_it)?;
