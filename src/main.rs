@@ -62,7 +62,7 @@ fn organize_transactions_by_customer(
         match record_result {
             Ok(tx) => {
                 debug!("Processing transaction {:?}", tx);
-                process(&tx)?;
+                process(&tx, customers)?;
             }
             Err(error) => {
                 error!("Error reading transaction: {}", error);
