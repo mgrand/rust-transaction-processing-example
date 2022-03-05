@@ -67,6 +67,11 @@ fn run() -> Result<()> {
 }
 
 const DEPOSIT: &'static str = "deposit";
+const WITHDRAWAL: &'static str = "withdrawal";
+const DISPUTE: &'static str = "dispute";
+const RESOLVE: &'static str = "resolve";
+
+const CHARGEBACK: &'static str = "chargeback";
 
 fn compute_customer_state_from_transactions(customers: &mut CustomerMap) {
     for customer in customers.values_mut() {
@@ -74,10 +79,10 @@ fn compute_customer_state_from_transactions(customers: &mut CustomerMap) {
         for tx in transactions {
             match tx.typ.trim() {
                 DEPOSIT => do_deposit(customer, &tx),
-                "withdrawal" => do_withdrawal(customer, &tx),
-                "dispute" => do_dispute(customer, &tx),
-                "resolve" => do_resolve(customer, &tx),
-                "chargeback" => do_chargeback(customer, &tx),
+                WITHDRAWAL => do_withdrawal(customer, &tx),
+                DISPUTE => do_dispute(customer, &tx),
+                RESOLVE => do_resolve(customer, &tx),
+                CHARGEBACK => do_chargeback(customer, &tx),
                 _ => warn!("Ignoring transaction with unknown type {:?}", tx),
             }
         }
@@ -103,7 +108,9 @@ fn change_balance(
             error!("Transaction caused overflow {:?}; ignoring transaction", tx);
             return;
         }
-    }
+    };
+    // abs of available should be less than or equal to abs of total, so it won't overflow if total didn't.
+    customer.available = f(customer.available, amount).expect("available shouldn't overflow if total didn't");
 }
 
 fn do_deposit(customer: &mut Customer, tx: &InputTransaction) {
@@ -115,29 +122,49 @@ fn do_withdrawal(customer: &mut Customer, tx: &InputTransaction) {
 }
 
 fn do_dispute(customer: &mut Customer, tx: &InputTransaction) {
+    if let Some(tx) = find_disputed_transaction(customer, tx).map(|tx| tx.clone()) {
+        dispute_transaction(customer, tx)
+    };
+}
+
+fn find_disputed_transaction<'a>(
+    customer: &'a Customer,
+    tx: &InputTransaction,
+) -> Option<&'a InputTransaction> {
     match u32::from_str(tx.tx.trim()) {
         Ok(tx_id) => match find_transaction(customer, tx_id) {
-            Some(disputed_tx) => dispute_transaction(customer, disputed_tx),
-            None => info!("Ignoring dispute because referenced transaction id does not exist for the specified customer: {}", tx_id)
+            Some(disputed_tx) => Some(disputed_tx),
+            None => {
+                info!("Ignoring {} because referenced transaction id does not exist for the specified customer: {}", 
+                    tx.typ.trim(), tx_id);
+                None
+            }
         },
         Err(_) => {
             invalid_transaction_id(tx);
+            None
         }
     }
 }
 
-fn dispute_transaction(customer: &mut Customer, tx: &InputTransaction) {
+fn dispute_transaction(customer: &mut Customer, tx: InputTransaction) {
     // I am assuming that only deposits can be disputed. Otherwise, people would be able to increase their available amount by disputing a withdrawal.
     if tx.typ == DEPOSIT {
         match Decimal::from_str(tx.amount.trim()) {
             Ok(amount) => {
                 customer.held = customer.held.saturating_add(amount);
                 customer.available = customer.available.saturating_sub(amount);
-            },
-            Err(error) => error!("Unable to dispute transaction because it does not contain a valid amount {:?}", tx)
+            }
+            Err(_) => error!(
+                "Unable to dispute transaction because it does not contain a valid amount {:?}",
+                tx
+            ),
         }
     } else {
-        warn!("Ignoring dispute of transaction that is not a deposit {:?}", tx)
+        warn!(
+            "Ignoring dispute of transaction that is not a deposit {:?}",
+            tx
+        )
     }
 }
 
@@ -159,45 +186,39 @@ fn invalid_transaction_id(tx: &InputTransaction) {
 }
 
 fn do_resolve(customer: &mut Customer, tx: &InputTransaction) {
-    match u32::from_str(tx.tx.trim()) {
-        Ok(tx_id) => match find_transaction(customer, tx_id) {
-            Some(disputed_tx) => resolve_transaction(customer, disputed_tx),
-            None => info!("Ignoring resolve because referenced transaction id does not exist for the specified customer: {}", tx_id)
-        },
-        Err(_) => {
-            invalid_transaction_id(tx);
-        }
-    }
+    if let Some(tx) = find_disputed_transaction(customer, tx).map(|tx| tx.clone()) {
+        resolve_transaction(customer, tx)
+    };
 }
 
-fn resolve_transaction(customer: &mut Customer, tx: &InputTransaction) {
+fn resolve_transaction(customer: &mut Customer, tx: InputTransaction) {
     // I am assuming that only deposits can be resolved, since I am assuming that only deposits can be disputed.
     if tx.typ == DEPOSIT {
         match Decimal::from_str(tx.amount.trim()) {
             Ok(amount) => {
                 customer.held = customer.held.saturating_sub(amount);
                 customer.available = customer.available.saturating_add(amount);
-            },
-            Err(error) => error!("Unable to resolve transaction because it does not contain a valid amount {:?}", tx)
+            }
+            Err(_) => error!(
+                "Unable to resolve transaction because it does not contain a valid amount {:?}",
+                tx
+            ),
         }
     } else {
-        warn!("Ignoring resolve of transaction that is not a deposit {:?}", tx)
+        warn!(
+            "Ignoring resolve of transaction that is not a deposit {:?}",
+            tx
+        )
     }
 }
 
 fn do_chargeback(customer: &mut Customer, tx: &InputTransaction) {
-    match u32::from_str(tx.tx.trim()) {
-        Ok(tx_id) => match find_transaction(customer, tx_id) {
-            Some(disputed_tx) => chargeback_transaction(customer, disputed_tx),
-            None => info!("Ignoring chargeback because referenced transaction id does not exist for the specified customer: {}", tx_id)
-        },
-        Err(_) => {
-            invalid_transaction_id(tx);
-        }
-    }
+    if let Some(tx) = find_disputed_transaction(customer, tx).map(|tx| tx.clone()) {
+        chargeback_transaction(customer, tx)
+    };
 }
 
-fn chargeback_transaction(customer: &mut Customer, tx: &InputTransaction) {
+fn chargeback_transaction(customer: &mut Customer, tx: InputTransaction) {
     // I am assuming that only deposits can be charged back, since I am assuming that only deposits can be disputed.
     if tx.typ == DEPOSIT {
         match Decimal::from_str(tx.amount.trim()) {
@@ -205,11 +226,17 @@ fn chargeback_transaction(customer: &mut Customer, tx: &InputTransaction) {
                 customer.held = customer.held.saturating_sub(amount);
                 customer.total = customer.total.saturating_sub(amount);
                 customer.locked = true;
-            },
-            Err(error) => error!("Unable to charge back transaction because it does not contain a valid amount {:?}", tx)
+            }
+            Err(_) => error!(
+                "Unable to charge back transaction because it does not contain a valid amount {:?}",
+                tx
+            ),
         }
     } else {
-        warn!("Ignoring charge back of transaction that is not a deposit {:?}", tx)
+        warn!(
+            "Ignoring charge back of transaction that is not a deposit {:?}",
+            tx
+        )
     }
 }
 
@@ -386,6 +413,56 @@ badrecord, "##;
         assert_eq!(2, customers.len());
         assert_eq!(2, customers.get(&1).unwrap().transactions.len());
         assert_eq!(1, customers.get(&2).unwrap().transactions.len());
+        Ok(())
+    }
+
+    #[test]
+    fn customer_state_test() -> Result<()> {
+        let mut customers = CustomerMap::new();
+        add_customer_transaction(
+            InputTransaction {
+                typ: "deposit".to_string(),
+                client: "1".to_string(),
+                tx: "1".to_string(),
+                amount: "1".to_string(),
+            },
+            &mut customers,
+        )?;
+        add_customer_transaction(
+            InputTransaction {
+                typ: "deposit".to_string(),
+                client: "2".to_string(),
+                tx: "2".to_string(),
+                amount: "1".to_string(),
+            },
+            &mut customers,
+        )?;
+        add_customer_transaction(
+            InputTransaction {
+                typ: "deposit".to_string(),
+                client: "1".to_string(),
+                tx: "3".to_string(),
+                amount: "3.5".to_string(),
+            },
+            &mut customers,
+        )?;
+        add_customer_transaction(
+            InputTransaction {
+                typ: "withdrawal".to_string(),
+                client: "1".to_string(),
+                tx: "4".to_string(),
+                amount: "2".to_string(),
+            },
+            &mut customers,
+        )?;
+        compute_customer_state_from_transactions(&mut customers);
+        let c1 = customers
+            .get(&1)
+            .expect("Expect to have a record for customer 1");
+        assert_eq!(Decimal::from_str("2.5").unwrap(), c1.total, "expected total to be 2.5. Record is {:?}", c1);
+        assert_eq!(Decimal::from_str("2.5").unwrap(), c1.available, "expected available to be 2.5. Record is {:?}", c1);
+        assert_eq!(Decimal::zero(), c1.held);
+        assert!(!c1.locked);
         Ok(())
     }
 }
