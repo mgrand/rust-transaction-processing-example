@@ -479,6 +479,44 @@ badrecord, "##;
             },
             &mut customers,
         )?;
+
+        add_customer_transaction(
+            InputTransaction {
+                typ: "deposit".to_string(),
+                client: "4".to_string(),
+                tx: "8".to_string(),
+                amount: "7".to_string(),
+            },
+            &mut customers,
+        )?;
+        add_customer_transaction(
+            InputTransaction {
+                typ: "deposit".to_string(),
+                client: "4".to_string(),
+                tx: "9".to_string(),
+                amount: "1".to_string(),
+            },
+            &mut customers,
+        )?;
+        add_customer_transaction(
+            InputTransaction {
+                typ: "dispute".to_string(),
+                client: "4".to_string(),
+                tx: "8".to_string(),
+                amount: "".to_string(),
+            },
+            &mut customers,
+        )?;
+        add_customer_transaction(
+            InputTransaction {
+                typ: "resolve".to_string(),
+                client: "4".to_string(),
+                tx: "8".to_string(),
+                amount: "".to_string(),
+            },
+            &mut customers,
+        )?;
+
         compute_customer_state_from_transactions(&mut customers);
         let c1 = customers
             .get(&1)
@@ -499,6 +537,12 @@ badrecord, "##;
         assert_eq!(Decimal::from_str("1").unwrap(), c3.available, "expected available to be 1. Record is {:?}", c3);
         assert_eq!(Decimal::from_str("7").unwrap(), c3.held, "expected held to be 7. Record is {:?}", c3);
         assert!(!c3.locked);
+
+        let c4 = customers.get(&4).expect("Expect to have a record for customer 4");
+        assert_eq!(Decimal::from_str("8").unwrap(), c4.total, "expected total to be 8. Record is {:?}", c4);
+        assert_eq!(Decimal::from_str("8").unwrap(), c4.available, "expected available to be 1. Record is {:?}", c4);
+        assert_eq!(Decimal::zero(), c4.held, "expected held to be 7. Record is {:?}", c4);
+        assert!(!c4.locked);
 
         Ok(())
     }
