@@ -433,7 +433,7 @@ badrecord, "##;
                 typ: "deposit".to_string(),
                 client: "2".to_string(),
                 tx: "2".to_string(),
-                amount: "1".to_string(),
+                amount: "1.6784".to_string(),
             },
             &mut customers,
         )?;
@@ -463,6 +463,13 @@ badrecord, "##;
         assert_eq!(Decimal::from_str("2.5").unwrap(), c1.available, "expected available to be 2.5. Record is {:?}", c1);
         assert_eq!(Decimal::zero(), c1.held);
         assert!(!c1.locked);
+
+        let c2 = customers.get(&2).expect("Expect to have a record for customer 2");
+        assert_eq!(Decimal::from_str("1.6784").unwrap(), c2.total, "expected total to be 1.6784. Record is {:?}", c2);
+        assert_eq!(Decimal::from_str("1.6784").unwrap(), c2.available, "expected available to be 1.6784. Record is {:?}", c2);
+        assert_eq!(Decimal::zero(), c1.held);
+        assert!(!c1.locked);
+
         Ok(())
     }
 }
