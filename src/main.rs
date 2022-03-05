@@ -275,7 +275,7 @@ fn organize_transactions_by_customer(
 fn add_customer_transaction(tx: InputTransaction, customers: &mut CustomerMap) -> Result<()> {
     let client_id = u32::from_str(tx.client.trim()).context("Client ID is not a valid integer")?;
     let customer = match customers.get_mut(&client_id) {
-        Some(cust) => cust,
+        Some(customer) => customer,
         None => {
             customers.insert(client_id, Customer::new());
             customers.get_mut(&client_id).unwrap()
