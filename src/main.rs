@@ -19,7 +19,8 @@ struct InputTransaction {
     #[serde(alias = "type")]
     typ: String,
     client: String,
-    tx: String,
+    #[serde(alias = "tx")]
+    tx_id: String,
     amount: String,
 }
 
@@ -134,7 +135,7 @@ fn find_disputed_transaction<'a>(
     customer: &'a Customer,
     tx: &InputTransaction,
 ) -> Option<&'a InputTransaction> {
-    match u32::from_str(&tx.tx) {
+    match u32::from_str(&tx.tx_id) {
         Ok(tx_id) => match find_transaction(customer, tx_id) {
             Some(disputed_tx) => Some(disputed_tx),
             None => {
@@ -175,7 +176,7 @@ fn find_transaction(customer: &Customer, tx_id: u32) -> Option<&InputTransaction
     customer
         .transactions
         .iter()
-        .find(|tx| match u32::from_str(&tx.tx) {
+        .find(|tx| match u32::from_str(&tx.tx_id) {
             Ok(this_id) => this_id == tx_id,
             Err(_) => false,
         })
@@ -396,19 +397,19 @@ badrecord, "##;
         let tx1 = InputTransaction {
             typ: "deposit".to_string(),
             client: "1".to_string(),
-            tx: "1".to_string(),
+            tx_id: "1".to_string(),
             amount: "1".to_string(),
         };
         let tx2 = InputTransaction {
             typ: "deposit".to_string(),
             client: "2".to_string(),
-            tx: "2".to_string(),
+            tx_id: "2".to_string(),
             amount: "1".to_string(),
         };
         let tx3 = InputTransaction {
             typ: "deposit".to_string(),
             client: "1".to_string(),
-            tx: "3".to_string(),
+            tx_id: "3".to_string(),
             amount: "1".to_string(),
         };
         let mut customers = CustomerMap::new();
@@ -428,7 +429,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "deposit".to_string(),
                 client: "1".to_string(),
-                tx: "1".to_string(),
+                tx_id: "1".to_string(),
                 amount: "1".to_string(),
             },
             &mut customers,
@@ -437,7 +438,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "deposit".to_string(),
                 client: "2".to_string(),
-                tx: "2".to_string(),
+                tx_id: "2".to_string(),
                 amount: "1.6784".to_string(),
             },
             &mut customers,
@@ -446,7 +447,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "deposit".to_string(),
                 client: "1".to_string(),
-                tx: "3".to_string(),
+                tx_id: "3".to_string(),
                 amount: "3.5".to_string(),
             },
             &mut customers,
@@ -455,7 +456,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "withdrawal".to_string(),
                 client: "1".to_string(),
-                tx: "4".to_string(),
+                tx_id: "4".to_string(),
                 amount: "2".to_string(),
             },
             &mut customers,
@@ -464,7 +465,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "deposit".to_string(),
                 client: "3".to_string(),
-                tx: "5".to_string(),
+                tx_id: "5".to_string(),
                 amount: "7".to_string(),
             },
             &mut customers,
@@ -473,7 +474,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "deposit".to_string(),
                 client: "3".to_string(),
-                tx: "6".to_string(),
+                tx_id: "6".to_string(),
                 amount: "1".to_string(),
             },
             &mut customers,
@@ -482,7 +483,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "dispute".to_string(),
                 client: "3".to_string(),
-                tx: "5".to_string(),
+                tx_id: "5".to_string(),
                 amount: "".to_string(),
             },
             &mut customers,
@@ -492,7 +493,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "deposit".to_string(),
                 client: "4".to_string(),
-                tx: "8".to_string(),
+                tx_id: "8".to_string(),
                 amount: "7".to_string(),
             },
             &mut customers,
@@ -501,7 +502,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "deposit".to_string(),
                 client: "4".to_string(),
-                tx: "9".to_string(),
+                tx_id: "9".to_string(),
                 amount: "1".to_string(),
             },
             &mut customers,
@@ -510,7 +511,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "dispute".to_string(),
                 client: "4".to_string(),
-                tx: "8".to_string(),
+                tx_id: "8".to_string(),
                 amount: "".to_string(),
             },
             &mut customers,
@@ -519,7 +520,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "resolve".to_string(),
                 client: "4".to_string(),
-                tx: "8".to_string(),
+                tx_id: "8".to_string(),
                 amount: "".to_string(),
             },
             &mut customers,
@@ -529,7 +530,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "deposit".to_string(),
                 client: "5".to_string(),
-                tx: "10".to_string(),
+                tx_id: "10".to_string(),
                 amount: "7".to_string(),
             },
             &mut customers,
@@ -538,7 +539,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "deposit".to_string(),
                 client: "5".to_string(),
-                tx: "11".to_string(),
+                tx_id: "11".to_string(),
                 amount: "1".to_string(),
             },
             &mut customers,
@@ -547,7 +548,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "dispute".to_string(),
                 client: "5".to_string(),
-                tx: "10".to_string(),
+                tx_id: "10".to_string(),
                 amount: "".to_string(),
             },
             &mut customers,
@@ -556,7 +557,7 @@ badrecord, "##;
             InputTransaction {
                 typ: "chargeback".to_string(),
                 client: "5".to_string(),
-                tx: "10".to_string(),
+                tx_id: "10".to_string(),
                 amount: "".to_string(),
             },
             &mut customers,
