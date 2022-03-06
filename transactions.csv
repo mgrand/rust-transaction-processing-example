@@ -1,4 +1,4 @@
-type,      client,tx,amount
+type,   client,  tx, amount
 deposit   ,     1, 1, 1
 deposit   ,     2, 2, 1.6784
 deposit   ,     1, 3, 3.5

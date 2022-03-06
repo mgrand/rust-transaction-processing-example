@@ -24,6 +24,7 @@ struct InputTransaction {
 
 #[derive(Debug, Serialize)]
 struct Customer {
+    client: u32,
     available: Decimal,
     held: Decimal,
     total: Decimal,
@@ -33,8 +34,9 @@ struct Customer {
 }
 
 impl Customer {
-    fn new() -> Self {
+    fn new(client: u32) -> Self {
         Customer {
+            client,
             available: Decimal::zero(),
             held: Decimal::zero(),
             total: Decimal::zero(),
@@ -60,7 +62,7 @@ fn main() {
 fn run() -> Result<()> {
     let reader = process_command_line(env::args().collect())?;
     let mut customers = CustomerMap::new();
-    organize_transactions_by_customer(&mut customers, add_customer_transaction, reader);
+    organize_transactions_by_customer(&mut customers, add_customer_transaction, reader)?;
     compute_customer_state_from_transactions(&mut customers);
     write_customer_output(&customers)?;
     Ok(())
@@ -242,7 +244,7 @@ fn write_customer_output(customers: &CustomerMap) -> Result<()> {
     for customer in customers.values() {
         wtr.serialize(customer)?;
     }
-    wtr.flush();
+    wtr.flush()?;
     Ok(())
 }
 
@@ -279,7 +281,7 @@ fn add_customer_transaction(tx: InputTransaction, customers: &mut CustomerMap) -
     let customer = match customers.get_mut(&client_id) {
         Some(customer) => customer,
         None => {
-            customers.insert(client_id, Customer::new());
+            customers.insert(client_id, Customer::new(client_id));
             customers.get_mut(&client_id).unwrap()
         }
     };
