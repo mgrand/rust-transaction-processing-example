@@ -2,6 +2,7 @@ extern crate anyhow;
 extern crate log;
 
 use anyhow::{bail, Context, Result};
+use csv::{ReaderBuilder, Trim};
 use log::{debug, error, info, warn};
 use rust_decimal::prelude::Zero;
 use rust_decimal::Decimal;
@@ -78,7 +79,7 @@ fn compute_customer_state_from_transactions(customers: &mut CustomerMap) {
     for customer in customers.values_mut() {
         let transactions = customer.transactions.clone();
         for tx in transactions {
-            match tx.typ.trim() {
+            match tx.typ.as_str() {
                 DEPOSIT => do_deposit(customer, &tx),
                 WITHDRAWAL => do_withdrawal(customer, &tx),
                 DISPUTE => do_dispute(customer, &tx),
@@ -96,7 +97,7 @@ fn change_balance(
     tx: &InputTransaction,
     f: fn(Decimal, Decimal) -> Option<Decimal>,
 ) {
-    let amount = match Decimal::from_str(tx.amount.trim()) {
+    let amount = match Decimal::from_str(&tx.amount) {
         Ok(amount) => amount,
         Err(_) => {
             error!("Bad amount in transaction {:?}; Ignoring transaction", tx);
@@ -133,12 +134,12 @@ fn find_disputed_transaction<'a>(
     customer: &'a Customer,
     tx: &InputTransaction,
 ) -> Option<&'a InputTransaction> {
-    match u32::from_str(tx.tx.trim()) {
+    match u32::from_str(&tx.tx) {
         Ok(tx_id) => match find_transaction(customer, tx_id) {
             Some(disputed_tx) => Some(disputed_tx),
             None => {
                 info!("Ignoring {} because referenced transaction id does not exist for the specified customer: {}", 
-                    tx.typ.trim(), tx_id);
+                    tx.typ, tx_id);
                 None
             }
         },
@@ -152,7 +153,7 @@ fn find_disputed_transaction<'a>(
 fn dispute_transaction(customer: &mut Customer, tx: InputTransaction) {
     // I am assuming that only deposits can be disputed. Otherwise, people would be able to increase their available amount by disputing a withdrawal.
     if tx.typ == DEPOSIT {
-        match Decimal::from_str(tx.amount.trim()) {
+        match Decimal::from_str(&tx.amount) {
             Ok(amount) => {
                 customer.held = customer.held.saturating_add(amount);
                 customer.available = customer.available.saturating_sub(amount);
@@ -174,7 +175,7 @@ fn find_transaction(customer: &Customer, tx_id: u32) -> Option<&InputTransaction
     customer
         .transactions
         .iter()
-        .find(|tx| match u32::from_str(tx.tx.trim()) {
+        .find(|tx| match u32::from_str(&tx.tx) {
             Ok(this_id) => this_id == tx_id,
             Err(_) => false,
         })
@@ -193,7 +194,7 @@ fn do_resolve(customer: &mut Customer, tx: &InputTransaction) {
 fn resolve_transaction(customer: &mut Customer, tx: InputTransaction) {
     // I am assuming that only deposits can be resolved, since I am assuming that only deposits can be disputed.
     if tx.typ == DEPOSIT {
-        match Decimal::from_str(tx.amount.trim()) {
+        match Decimal::from_str(&tx.amount) {
             Ok(amount) => {
                 customer.held = customer.held.saturating_sub(amount);
                 customer.available = customer.available.saturating_add(amount);
@@ -220,7 +221,7 @@ fn do_chargeback(customer: &mut Customer, tx: &InputTransaction) {
 fn chargeback_transaction(customer: &mut Customer, tx: InputTransaction) {
     // I am assuming that only deposits can be charged back, since I am assuming that only deposits can be disputed.
     if tx.typ == DEPOSIT {
-        match Decimal::from_str(tx.amount.trim()) {
+        match Decimal::from_str(&tx.amount) {
             Ok(amount) => {
                 customer.held = customer.held.saturating_sub(amount);
                 customer.total = customer.total.saturating_sub(amount);
@@ -253,7 +254,7 @@ fn organize_transactions_by_customer(
     process: fn(InputTransaction, &mut CustomerMap) -> Result<()>,
     reader: Box<dyn Read>,
 ) -> Result<()> {
-    let mut csv_reader = csv::Reader::from_reader(reader);
+    let mut csv_reader = ReaderBuilder::new().trim(Trim::All).from_reader(reader);
     let mut transaction_count = 0;
     let mut err_count = 0;
     for record_result in csv_reader.deserialize() {
@@ -277,7 +278,7 @@ fn organize_transactions_by_customer(
 }
 
 fn add_customer_transaction(tx: InputTransaction, customers: &mut CustomerMap) -> Result<()> {
-    let client_id = u32::from_str(tx.client.trim()).context("Client ID is not a valid integer")?;
+    let client_id = u32::from_str(&tx.client).context("Client ID is not a valid integer")?;
     let customer = match customers.get_mut(&client_id) {
         Some(customer) => customer,
         None => {
