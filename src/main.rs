@@ -635,7 +635,7 @@ badrecord, "##;
         assert_eq!(
             Decimal::from_str("8").unwrap(),
             c4.available,
-            "expected available to be 1. Record is {:?}",
+            "expected available to be 8. Record is {:?}",
             c4
         );
         assert_eq!(
