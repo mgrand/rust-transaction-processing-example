@@ -99,7 +99,7 @@ fn change_balance(
     f: fn(Decimal, Decimal) -> Option<Decimal>,
 ) {
     let amount = match Decimal::from_str(&tx.amount) {
-        Ok(amount) => amount,
+        Ok(amount) => amount.round_dp(4),
         Err(_) => {
             error!("Bad amount in transaction {:?}; Ignoring transaction", tx);
             return;
@@ -321,7 +321,7 @@ mod tests {
     }
 
     #[test]
-    fn process_command_line_wrong_arg_count() {
+    fn process_command_line_wrong_number_of_args() {
         if let Ok(_) = process_command_line(vec!["exe".to_string()]) {
             panic!("No error for zero args")
         }
@@ -335,7 +335,7 @@ mod tests {
     }
 
     #[test]
-    fn process_command_line_nonexistent_file() {
+    fn process_command_line_with_nonexistent_file() {
         if let Ok(_) = process_command_line(vec!["exe".to_string(), "bogus".to_string()]) {
             panic!("No error for zero args")
         }
